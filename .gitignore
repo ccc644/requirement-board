@@ -1,0 +1,32 @@
+# ---- 敏感配置：只提交示例文件 ----
+.env
+.env.*
+!.env.example
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+.python-version
+
+# ---- 运行时数据（示例库 kanban.db 保留，用户上传与日志不入库）----
+data/attachments/
+logs/
+*.log
+*.db-journal
+*.db-wal
+*.db-shm
+
+# ---- 开发过程产物 ----
+*.snapshot-*
+*.bak-*
+.DS_Store
+Thumbs.db
+
+# ---- 编辑器 / IDE ----
+.idea/
+.vscode/
+*.swp

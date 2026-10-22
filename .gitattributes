@@ -1,0 +1,17 @@
+# 统一换行符，避免 Windows / Linux 混用导致整文件 diff
+* text=auto
+
+*.py     text eol=lf
+*.js     text eol=lf
+*.mjs    text eol=lf
+*.sql    text eol=lf
+*.md     text eol=lf
+*.toml   text eol=lf
+*.sh     text eol=lf
+*.bat    text eol=crlf
+*.ps1    text eol=crlf
+
+*.db     binary
+*.png    binary
+*.jpg    binary
+*.ico    binary

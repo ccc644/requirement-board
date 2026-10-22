@@ -1,0 +1,4 @@
+# Streamlit 配置
+[client]
+# 隐藏顶部的 Deploy 按钮和常驻工具栏（⋮ 菜单仅在鼠标悬停页顶时浮现）
+toolbarMode = "minimal"
