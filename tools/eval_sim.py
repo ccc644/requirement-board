@@ -136,19 +136,23 @@ def main() -> int:
             db.save_user({"id": uid, "name": name, "role": role, "department": dept}, password="x")
 
         # ---- 2. 评估统计函数（真实实现）----
-        import app  # 无头导入：仅用其纯统计/口径函数，不渲染任何页面
+        from config import SURVEY_QUESTION_SET, SURVEY_QUESTIONS  # noqa: E402
+        from services.evaluation import (  # noqa: E402
+            _ratings, _survey_due, _survey_stats, improvement_health,
+            satisfaction_stats,
+        )
 
         section("S1 空库边界（无数据）")
-        q = app._survey_stats()
+        q = _survey_stats()
         check("问卷：触达=0 提交=0 均分=0", (q["reached"], q["submitted"], q["avg"]) == (0, 0, 0.0))
         check("问卷：空库小样本预警生效", q["low_sample"] is True and q["min_sample"] == 5)
         check("问卷：KUI 分档全 0",
               [c for _n, c, _col in q["kui_dist"]] == [0, 0, 0, 0], str(q["kui_dist"]))
         check("问卷：逐题统计为空", q["per_question"] == {})
-        s = app.satisfaction_stats(reqs=[])
+        s = satisfaction_stats(reqs=[])
         check("评价：done=0 rated=0 expected=0 avg=0",
               (s["done"], s["rated"], s["expected"], s["avg"]) == (0, 0, 0, 0.0))
-        h = app.improvement_health([])
+        h = improvement_health([])
         check("闭环：total=0 backlog=0 terminal=0 notify_rate=0",
               (h["total"], h["backlog"], h["terminal"], h["notify_rate"]) == (0, 0, 0, 0.0))
         check("闭环：load_improvements 为空", db.load_improvements() == [])
@@ -160,23 +164,23 @@ def main() -> int:
                                       ("U003", "丙工程", "工程师", "B组")]:
             rec_ids[uid] = db.new_survey_dismissed({"id": uid, "name": name,
                                                     "role": role, "department": dept})
-        q = app._survey_stats()
+        q = _survey_stats()
         check("触达=3 提交=0（打开即写 dismissed）", (q["reached"], q["submitted"]) == (3, 0))
         check("评分类统计不算 dismissed", q["avg"] == 0.0 and q["comments"] == [])
         check("冷却期内 _survey_due=False（触达时刻起算）",
-              app._survey_due("U001") is False and app._survey_due("U003") is False)
-        check("从未触达的用户 _survey_due=True", app._survey_due("U999") is True)
+              _survey_due("U001") is False and _survey_due("U003") is False)
+        check("从未触达的用户 _survey_due=True", _survey_due("U999") is True)
         check("last_survey_at 返回最近触达时间（不分 response_type）",
               (db.last_survey_at("U001") or "") != "")
 
         section("S3 部分提交：逐题统计 / KUI 分档 / question_set")
-        qs = app.SURVEY_QUESTIONS
+        qs = SURVEY_QUESTIONS
         ans1 = {qs[0]: 5, qs[1]: 4, qs[2]: 4, qs[3]: 5}   # 均分 4.5 → A 档
         ans2 = {qs[0]: 2, qs[1]: 3, qs[2]: 1, qs[3]: 2}   # 均分 2.0 → C 档
         db.submit_survey(rec_ids["U001"], 4.5, ans1, ["AI 搜索", "周报"],
-                         "希望AI搜索能搜到附件内容", question_set=app.SURVEY_QUESTION_SET)
-        db.submit_survey(rec_ids["U002"], 2.0, ans2, [], "", question_set=app.SURVEY_QUESTION_SET)
-        q = app._survey_stats()
+                         "希望AI搜索能搜到附件内容", question_set=SURVEY_QUESTION_SET)
+        db.submit_survey(rec_ids["U002"], 2.0, ans2, [], "", question_set=SURVEY_QUESTION_SET)
+        q = _survey_stats()
         check("触达=3 提交=2 KUI均分=3.25",
               (q["reached"], q["submitted"], round(q["avg"], 4)) == (3, 2, 3.25))
         check("提交率口径=提交/触达（精确口径）", q["submitted"] / q["reached"] == 2 / 3)
@@ -200,7 +204,7 @@ def main() -> int:
             "VALUES (%s,'U998','旧用户','工程师','X','submitted',5,%s,'[]','',%s,%s)",
             (legacy_id, _json.dumps({qs[0]: 5, qs[1]: 5}, ensure_ascii=False),
              "2026-01-01 08:00:00", "2026-01-01 08:01:00"))
-        q = app._survey_stats()
+        q = _survey_stats()
         pq = dict((t, (round(a, 4), c)) for t, a, c in q["per_question"].get("v1", []))
         check("旧行 NULL 视作 v1 并入逐题统计（Q1: (5+2+5)/3=4.0 n=3；Q2: (4+3+5)/3=4.0 n=3）",
               pq.get(qs[0]) == (4.0, 3) and pq.get(qs[1]) == (4.0, 3)
@@ -214,7 +218,7 @@ def main() -> int:
             "satisfaction": 4, "satisfaction_by": "U001",
             "satisfaction_comment": "旧评语", "satisfaction_at": "2026-01-02 10:00",
         }
-        ratings = app._ratings(req_legacy)
+        ratings = _ratings(req_legacy)
         check("_ratings 归一化历史单值为 {U001:{score:4}}",
               set(ratings) == {"U001"} and int(ratings["U001"]["score"]) == 4
               and ratings["U001"]["comment"] == "旧评语")
@@ -226,7 +230,7 @@ def main() -> int:
                 "U002": {"score": 2, "comment": "交付偏慢", "at": "2026-01-03 10:00"},
             },
         }
-        s = app.satisfaction_stats(reqs=[req_legacy, req_dict])
+        s = satisfaction_stats(reqs=[req_legacy, req_dict])
         # done=2；应评价=每条 3 人=6；已评价=1+2=3；均分=(4+5+2)/3；满意率(4~5星)=2/3
         check("done=2 rated=3 expected=6 missing=3",
               (s["done"], s["rated"], s["expected"], s["missing"]) == (2, 3, 6, 3))
@@ -237,7 +241,7 @@ def main() -> int:
               and s["by_role"].get("建议责任人") == [2] and "执行人" not in s["by_role"])
 
         section("S5 问卷建议自动建项（复刻 _survey_dialog 提交分支的真实调用序列）")
-        # 与 app._survey_dialog 提交分支完全相同的两步：submit_survey → create_improvement
+        # 与 _survey_dialog 提交分支完全相同的两步：submit_survey → create_improvement
         imp_survey = db.create_improvement(
             source_type="survey", source_id=rec_ids["U001"],
             proposer_id="U001", proposer_name="甲管理",
@@ -378,7 +382,7 @@ def main() -> int:
         db._execute("UPDATE eval_improvement SET created_at='2026-01-02 00:00:00', "
                     "closed_at='2026-01-03 00:00:00' WHERE id = %s", (sh,))
         imps = db.load_improvements()
-        h = app.improvement_health(imps)
+        h = improvement_health(imps)
         # 终项（已上线/不采纳）= imp_survey(已上线,已回告,已确认) + sh(不采纳,未回告,未确认)
         check("total/by_status 计数正确",
               h["total"] == len(imps) and h["by_status"].get("已上线") == 1
@@ -407,7 +411,7 @@ def main() -> int:
               (a["dau"], a["wau"], a["mau"], a["has_data"]) == (0, 0, 0, False))
         check("活跃：空库 page_heat/user_activity 为空列表",
               a["page_heat"] == [] and a["user_activity"] == [])
-        # 埋点写入（真实 DAO，与 app.py 两处埋点点同一函数）：登录 + 页面切换
+        # 埋点写入（真实 DAO，与 py 两处埋点点同一函数）：登录 + 页面切换
         db.log_user_activity("U001", "甲管理", "管理层", "", "login")
         db.log_user_activity("U001", "甲管理", "管理层", "📊 中心总览", "page_view")
         db.log_user_activity("U001", "甲管理", "管理层", "📋 我的看板", "page_view")

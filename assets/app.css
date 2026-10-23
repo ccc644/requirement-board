@@ -1,0 +1,439 @@
+/* ===== 0) 全局盒模型归一 =====
+   Streamlit 组件自带的默认外边距会打破「纵向节奏」：例如按钮内的 <p> 自带上下
+   margin 会把按钮撑高、且文字不再垂直居中。统一清零，各处再按需显式设置，
+   避免出现「文字与分隔线重合」这类由默认外边距引起的错位。 */
+[data-testid="stMarkdownContainer"] p { margin: 0; }
+[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p { margin: 0; }
+[data-testid="stSidebar"] hr { border-color: rgba(255,255,255,.10); margin: .5rem 0; }
+/* ===== 1) 深色侧边栏（参考客诉系统 AppSidebar）===== */
+[data-testid="stSidebar"] { background: #1E2A3A; }
+[data-testid="stSidebar"] h3 { color: #FFFFFF; }
+/* 侧边栏宽度：Streamlit 1.61 把它做成 React state 内联在 <section> 上
+   （默认 300px，可拖拽 200-600px），且没有主题配置项可改，故只能用 !important
+   压过内联宽度并锁死 min/max，使拖拽不再生效。
+   224px = 客诉系统侧边栏 w-56（14rem）。
+   宽度值同时以变量 --kb-sidebar-w 暴露，供第 6 节的 fixed 顶栏消费——
+   这样「侧边栏宽度」只有一处事实，不会出现顶栏左偏移与侧边栏不同步的错位。 */
+/* 侧边栏宽度与顶栏高度是两个「跨区块共享」的尺寸，统一提为变量：
+   --kb-sidebar-w 供顶栏左偏移消费；--kb-header-h 供顶栏自身、主区占位、侧边栏品牌区消费。
+   这样「品牌标题与顶栏标题同一水平线」「内容紧贴顶栏下缘」都是由同一个数推出来的，
+   不再需要在几处手写同样的像素值（v4 时代的两处耦合就是这么来的）。 */
+:root { --kb-sidebar-w: 224px; --kb-header-h: 57px; }
+[data-testid="stSidebar"] {
+    width: var(--kb-sidebar-w) !important;
+    min-width: var(--kb-sidebar-w) !important;
+    max-width: var(--kb-sidebar-w) !important;
+    flex: 0 0 var(--kb-sidebar-w) !important;
+}
+/* 侧边栏顶部那一行（Streamlit 的 stSidebarHeader：logo 占位 + 收起按钮）
+   会把品牌区整体推低约 64px，于是「需求看板 AI 助手」比顶栏标题低一截。
+   侧边栏宽度已被 !important 锁死 224px，收起按钮实际失去意义，
+   故整行隐藏，改由品牌区自己占「与顶栏等高」的一条，使两侧标题落在同一水平线上。 */
+[data-testid="stSidebarHeader"] { display: none !important; }
+/* 稳定滚动条槽位会在两侧各留一条空槽（本主题下约 0.5rem），
+   加上它侧边栏内容实际只有 ~208px 可用，视觉上明显偏窄；置为 auto 去掉。
+   （选择器取值自 Streamlit 包内 eelgd2m2 组件定义） */
+[data-testid="stSidebarContent"] { scrollbar-gutter: auto !important; }
+/* 底部 sidebarTopSpace（Streamlit 侧边栏用户区自带 6rem 下内边距）清零：
+   v5 高度链（见下方贴底实现）已让用户区吃满滚动容器，这里每留 1rem 底内边距，
+   footer（个人信息/退出登录）就会被从底边顶开同样距离；置 0 才是真正贴住最下端。 */
+[data-testid="stSidebarUserContent"] { padding-bottom: 0 !important; }
+/* 侧边栏内元素纵向间距：默认 gap 1rem 太散，收窄到 .25rem（行高由按钮自身撑） */
+[data-testid="stSidebar"] [data-testid="stVerticalBlock"] { gap: .25rem; }
+/* 品牌区：与顶栏**等高**，内容纵向居中 → 品牌标题与顶栏标题精确落在同一水平线
+   （顶栏 57px 内容居中在 28.5px；品牌区 57px 内容居中也在 28.5px，由同一个变量推出）。
+   高度用 box-sizing:border-box，让底部分隔线含在 57px 内，不额外撑高。 */
+.kb-brand {
+    height: var(--kb-header-h); box-sizing: border-box;
+    display: flex; flex-direction: column; justify-content: center;
+    padding: 0 6px; margin-bottom: 6px;
+    border-bottom: 1px solid rgba(255,255,255,.10);
+}
+.kb-brand .t { font-size: 15px; color: #FFF; font-weight: 600; letter-spacing: .3px; line-height: 1.35; }
+.kb-brand .s { font-size: 11px; color: #7C8CA0; margin-top: 4px; }
+.kb-nav-group { font-size: 10.5px; color: #66788E; letter-spacing: .5px; padding: 6px 6px 2px; }
+/* 导航区与上方品牌区分隔线之间留一段呼吸空间（用户要求「按钮往下移一点」）。
+   放在导航容器自身的 padding-top 上，而不是加在品牌区的 margin-bottom：
+   分隔线属于品牌区，改它的外边距会把线也推走；改这里只让按钮下移，线的位置不动。 */
+[data-testid="stSidebar"] [class*="st-key-kb_nav"] { padding-top: .625rem; }
+/* 导航按钮：几何取自客诉系统 .nav-item（gap 10px / 内边距 5px 10px / 13.5px / 行高 1.4）。
+   Streamlit 按钮会给文字套一层 <p>，p 自带上下 margin 会把按钮撑高且不居中，
+   故显式清零（margin/line-height），让按钮盒高 = 文字高 + 2×5px。 */
+[data-testid="stSidebar"] [class*="st-key-kb_nav"] button[kind="secondary"] {
+    background: transparent; color: #C7D0DC; border: none;
+    border-radius: 6px; text-align: left; justify-content: flex-start;
+    box-shadow: none; padding: 5px 10px; font-size: 13.5px; font-weight: 400;
+    min-height: 0; line-height: 1.4;
+}
+[data-testid="stSidebar"] [class*="st-key-kb_nav"] button[kind="secondary"] p,
+[data-testid="stSidebar"] [class*="st-key-kb_nav"] button[kind="primary"] p {
+    margin: 0 !important; padding: 0 !important; font-size: inherit;
+    line-height: inherit; text-align: left;
+}
+[data-testid="stSidebar"] [class*="st-key-kb_nav"] button[kind="secondary"]:hover {
+    background: rgba(255,255,255,.08); color: #FFFFFF;
+}
+/* 导航按钮（当前页）：主题蓝半透明底 + 白字加粗（客诉系统 active-class !bg-white/12） */
+[data-testid="stSidebar"] [class*="st-key-kb_nav"] button[kind="primary"] {
+    background: rgba(64,158,255,.16); color: #FFFFFF; border: none;
+    border-radius: 6px; text-align: left; justify-content: flex-start;
+    font-weight: 600; padding: 5px 10px; font-size: 13.5px;
+    min-height: 0; line-height: 1.4;
+}
+[data-testid="stSidebar"] [class*="st-key-kb_nav"] button[kind="primary"]:hover {
+    background: rgba(64,158,255,.28);
+}
+/* 侧边栏内输入控件适配深色底（LLM 配置 expander 内） */
+[data-testid="stSidebar"] input,
+[data-testid="stSidebar"] [data-baseweb="select"] > div {
+    background: rgba(255,255,255,.06); color: #E2E8F0 !important; border-color: #334155;
+}
+/* 侧边栏说明文字 */
+[data-testid="stSidebar"] [data-testid="stCaptionContainer"],
+[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p,
+[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] li { color: #93A1B5; }
+/* 底部用户区（参考客诉系统 AppSidebar：用户卡片 + 退出入口钉在侧边栏最底部）。
+   分隔线用容器自身的 border-top，不再用 st.markdown("---")：
+   ① <hr> 是独立元素、位置相对容器会漂移；② 容器的 padding-top 会让 <hr> 下移，
+   而 sticky 的不透明背景又会盖住它的上半部分，结果就是那条线被切一半、
+   正好压在下方用户名上（用户截图可见）。
+   贴底实现（v5，v1–v4 都没真正到底，教训见下）：
+   v1 `position: sticky; bottom: 0` —— 空操作：sidebar 的 <section> 被 react-resizable
+      内联设成 height:auto，内容不满时没有粘附余量，用户区停在内容末尾。
+   v2 `margin-top: auto` + 一条「section → stSidebarContent → stSidebarUserContent →
+      纵向块」的 flex 高度链 —— 仍不到底：该链任一环没有确定高度（或中间还夹了一层
+      我没预料到的 div），flex-grow 就分不到余量，auto 外边距也无从计算。
+   v3/v4 给纵向块写死 min-height:calc(100dvh - 7rem) —— 机制对但常量错：顶部真实占用
+      只有收起按钮行（包内 defaultHeaderHeight≈2.19rem）+ 其下边距 1rem ≈ 3.2rem，
+      加上当时用户区的 1rem 底内边距共约 4.2rem。7rem 多减的 ~2.8rem 让纵向块
+      永远比可视区矮一截——footer 沉到块底也碰不到侧边栏底边，换主题/换字号还会再失准。
+   v5（当前）不再「视口高减手估常量」，而是从全链唯一高度确定的地方——滚动容器——
+      把高度传导下来：stSidebarContent 自带 height:100%（包内 eelgd2m2 定义，随 <section>
+      拉满视口），拉成 flex 列后：用户区 flex-grow 吃满剩余高度 → 纵向块再 flex-grow →
+      footer 沉到真正的底，全程无像素常量。内容超出时 flex-basis:auto 保底退化回文档流，
+      footer 排在内容之后可滚动（不会盖住内容）。
+   ⚠️ 注意区分两个名字相近的容器：
+     stSidebarContent     = 整个侧边栏内容（滚动容器，height:100%，v5 的高度源头）
+     stSidebarUserContent = 用户内容区（内部含品牌区/导航/问卷/LLM/用户区） */
+[data-testid="stSidebar"] { min-height: 100dvh !important; }
+/* 高度源头：滚动容器拉成 flex 列（子级 = stSidebarHeader + stSidebarUserContent） */
+[data-testid="stSidebarContent"] {
+    display: flex !important; flex-direction: column !important;
+}
+/* 收起按钮行锁死不压缩：内容超高滚动时不被 flex 挤扁 */
+[data-testid="stSidebarHeader"] { flex: 0 0 auto; }
+/* 用户区吃满滚动容器剩余高度，纵向块（用户区唯一子 div，包内 eelgd2m5）再吃满用户区。
+   这两条取代了 v3/v4 的 min-height:calc(100dvh - 7rem)。 */
+[data-testid="stSidebarUserContent"] {
+    flex: 1 0 auto !important;
+    display: flex !important; flex-direction: column !important;
+}
+[data-testid="stSidebarUserContent"] > div {
+    flex: 1 0 auto !important;
+    display: flex !important; flex-direction: column !important;
+}
+/* footer 是侧边栏最后一个元素（render_sidebar 第 6 段），其包装层 :last-child 可命中。
+   v4 结论（保留）：st.container 的 div 外面还包着一层 stElementContainer（包内 JS 自证），
+   footer 是纵向块的「孙级」而非「子级」——包装层也要拉成 flex 列并 flex-grow 吃满余量，
+   footer 的 auto 外边距才能真正沉底。 */
+/* footer 的包装层：用 :has() **按内容**命中，不再依赖「它是第几个子 div、嵌了几层」。
+   v5 用 `> div > div:last-child` 的位置选择器，只要 DOM 层级/顺序与假设不符，整条
+   高度链就静默失效——表现正是 footer 停在半空、下方留一大片（用户截图所见）。
+   :has() 只认「谁的直接子级是 footer 容器」，与位置和嵌套深度无关。 */
+[data-testid="stSidebarUserContent"] div:has(> [class*="st-key-kb_sidebar_footer"]) {
+    display: flex !important; flex-direction: column !important;
+    flex: 1 0 auto !important;
+    justify-content: flex-end;   /* 双保险：即使 auto 外边距失效也把 footer 压到底 */
+}
+/* 内容超出视口时（导航+两个折叠区已比早期长），flex 分不到余量，
+   此时靠 sticky 让 footer 钉在可视区底部——两种场景互补：
+     · 内容不满一屏 → margin-top:auto + justify-content:flex-end 沉到最底
+     · 内容超一屏   → sticky bottom:0 保持可见（不再被滚走） */
+[class*="st-key-kb_sidebar_footer"] {
+    position: sticky; bottom: 0;
+    background: #1E2A3A;
+    border-top: 1px solid rgba(255,255,255,.10);
+    padding-top: 10px;
+    margin-top: auto !important;
+}
+[class*="st-key-kb_sidebar_footer"] button[kind="secondary"] {
+    background: transparent; color: #C7D0DC;
+    border: 1px solid rgba(255,255,255,.15); border-radius: 6px;
+    margin-top: 8px; padding: 5px 10px; font-size: 12.5px; line-height: 1.4;
+    min-height: 0;
+}
+[class*="st-key-kb_sidebar_footer"] button[kind="secondary"] p {
+    margin: 0 !important; padding: 0 !important; font-size: inherit; line-height: inherit;
+}
+[class*="st-key-kb_sidebar_footer"] button[kind="secondary"]:hover {
+    background: rgba(255,255,255,.08); color: #FFFFFF;
+}
+/* 底部用户块（参考客诉系统 AppSidebar 用户卡片：w-8 圆头像 + 姓名/角色两行，
+   姓名 12.5px 白、角色 11px 暗）。显式定行高，避免继承 1.6 导致两行过散。 */
+.kb-sb-user { display: flex; align-items: center; gap: 9px; padding: 2px 0 0; }
+.kb-sb-user-meta { line-height: 1.25; min-width: 0; }
+.kb-sb-user-name {
+    font-size: 12.5px; color: #E2E8F0; font-weight: 500;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.kb-sb-user-role {
+    font-size: 11px; color: #7C8CA0; margin-top: 1px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+/* 底部用户区里的 markdown 段落不能带上下外边距，否则会把头像行推离分隔线 */
+[class*="st-key-kb_sidebar_footer"] [data-testid="stMarkdownContainer"] { margin: 0; }
+
+/* ===== 2) 灰底内容区 + 白卡片（参考客诉系统 bg-gray-50 + 白卡）===== */
+.stApp, [data-testid="stAppViewContainer"] { background: #F5F6F8; }
+/* 主区留白（top 占位 + 左右对齐，两条规则解决两个实测错位）：
+   ① padding-top = 顶栏占位块。顶栏总高由构造确定：10+36+10+1 = 57px
+      （行高已锁 36px，见第 6 节），占位取 61px（57 + 4px 呼吸空隙）——
+      内容紧贴冻结栏下缘（用户要求「主面上移，与冻结栏靠近对齐」）。
+      ⚠️ 耦合提醒：改第 6 节顶栏的上下内边距或行高锁值时，必须同步改这里。
+   ② padding-left/right 固定 1rem：Streamlit wide 布局有一条媒体查询
+      （min-width: calc(736px + 2*(5rem - 1rem)) = 864px）会把内容左右内边距
+      提到 5rem（wideSidePadding），而顶栏固定 1rem——于是 ≥864px 的视口上，
+      页面标题比顶栏标题**右错 64px**（用户截图所见）。统一压回 1rem 后，
+      所有页面内容与顶栏标题共用同一条左基线（对齐左上角），且任何视口宽度下一致。
+      代价：超宽屏上内容不再有 5rem 大边沟，表格/卡片可铺满——对管理工具是收益。 */
+[data-testid="stMainBlockContainer"] {
+    padding-top: calc(var(--kb-header-h) + 4px) !important;
+    padding-left: 1rem !important; padding-right: 1rem !important;
+}
+/* 白卡片挂钩（t34 F-01）：_card() 的 st.container(key="kb_card_N") 会生成
+   class="st-key-kb_card_N"（包内自证 st-key- 类存在，命中 27 文件）；
+   border 来自 emotion 内联样式，须 !important 覆盖；background 内联未设、直接生效 */
+[class*="st-key-kb_card_"] {
+    background: #FFFFFF; border: 1px solid #EDEFF2 !important; border-radius: 10px;
+    box-shadow: 0 1px 3px rgba(15,23,42,.05);
+}
+/* 嵌套规则：卡片内部的 metric 去掉独立白框，避免「白底套白底」双边框
+   （D2/D3/用户活跃等区块的 st.metric 位于卡片内） */
+[class*="st-key-kb_card_"] [data-testid="stMetric"] {
+    background: transparent; border: none; box-shadow: none;
+}
+/* 卡片标题条：参考客诉系统卡片头（整宽分隔线 + 文字与正文同基线）。
+   边框容器 st.container(border=True) 的实际内缩是「1px 边框 + 15px 内边距」= 16px，
+   故用 -16px 负外边距顶到卡片边框内沿、再用 16px 内边距把文字放回 16px 基线。
+   （实测：用 -15px 时标题条左右各差 0.6px，即少了那 1px 边框。） */
+.kb-card-hd {
+    font-size: 14px; font-weight: 600; color: #1F2329; line-height: 1.4;
+    margin: 0 -16px 12px; padding: 0 16px 12px;
+    border-bottom: 1px solid #F0F2F5;
+}
+.kb-card-hd .kb-tag { float: right; font-size: 11.5px; font-weight: 400; color: #8A94A6; }
+
+/* ===== 3) KPI 块（参考客诉系统 KpiCard）：st.metric 白卡片化
+   （作用于页面顶层裸 metric；卡片内 metric 由上方嵌套规则去框、不用内边距） ===== */
+[data-testid="stMetric"] {
+    background: #FFFFFF; border: 1px solid #EDEFF2; border-radius: 10px;
+    padding: 15px 17px; box-shadow: 0 1px 3px rgba(15,23,42,.05);
+}
+/* 指标名：12px 灰字，与数值之间留 7px（客诉系统 .kpi .lbl） */
+[data-testid="stMetric"] [data-testid="stMetricLabel"] {
+    color: #8A94A6; font-size: 12px; line-height: 1.4; margin: 0 0 7px;
+}
+[data-testid="stMetric"] [data-testid="stMetricLabel"] p { margin: 0; font-size: 12px; }
+/* 指标值：25px / 700，略收字距（客诉系统 .kpi .val） */
+[data-testid="stMetric"] [data-testid="stMetricValue"] {
+    font-size: 25px; font-weight: 700; letter-spacing: -.5px; line-height: 1.15;
+    color: #1F2329;
+}
+/* 卡片内 metric 去掉内边距与白框，保持区块原有节奏 */
+[class*="st-key-kb_card_"] [data-testid="stMetric"] { padding: 0; }
+
+/* ===== 4) 表头（草图 table th）===== */
+[data-testid="stTable"] thead th, [data-testid="stTable"] th {
+    background: #FAFBFC; color: #4E5969; font-weight: 600;
+    border-bottom: 1px solid #EBEDF0; font-size: 12px;
+}
+
+/* ===== 5) 统一页头 / Header 胶囊 / 角标（参考客诉系统页面标题区）=====
+   行高必须显式定死：Streamlit 正文继承 line-height 1.6，19px 标题的行盒会被撑到
+   30.4px，而右侧主操作按钮只有 40px 高——两者各自「按行盒居中」时中心就差了
+   7.6px（真实浏览器实测：按钮中心 212.5 vs 标题文字中心 220.1）。
+   把标题/副标题行高收到 1.15 后，行盒约 22px，与文字高度一致，中心即可对齐。 */
+.kb-page-title { font-size: 19px; font-weight: 600; color: #1F2329; line-height: 1.15; }
+.kb-page-sub { font-size: 12px; color: #8A94A6; line-height: 1.15; }
+/* ---- 页面标题归一（用户要求：所有页标题与「系统评估」一致）----
+   三个卡片化页走 _page_header（.kb-page-title 19px/600），其余 8 页直接
+   st.markdown("## X")——Streamlit 原生 h2 明显更大，同一系统两种页头字号并存。
+   这里把主区 h2 归一到与 .kb-page-title 完全相同的规格（19px/600/#1F2329/1.15），
+   不改各页调用点，一处 CSS 全局生效。作用域限定 stMainBlockContainer，
+   侧边栏与弹窗内的标题不受影响。
+   下边距收到 2px：让 h2 下方的 st.caption 紧贴标题，观感与
+   _page_header 的「标题+副标题」排布一致。 */
+[data-testid="stMainBlockContainer"] h2 {
+    font-size: 19px !important; font-weight: 600 !important;
+    color: #1F2329 !important; line-height: 1.15 !important;
+    letter-spacing: .2px; margin: 0 0 2px 0 !important;
+}
+.kb-avatar {
+    width: 28px; height: 28px; border-radius: 50%; background: #409EFF; color: #FFF;
+    font-size: 12px; display: inline-flex; align-items: center; justify-content: center;
+    font-weight: 600;
+}
+.kb-who { font-size: 12.5px; color: #1F2329; }
+.kb-dot {
+    display: inline-block; width: 7px; height: 7px; background: #F56C6C;
+    border-radius: 50%; margin-left: -4px; vertical-align: top;
+}
+
+/* ===== 5b) 横向标签菜单（版式参考客诉系统 SystemEval 的 Tab 切换条）=====
+   参考实现的令牌逐条对应：
+     容器 flex gap-1 border-b border-gray-200
+     标签 px-4 py-2.5 / text-sm(14px) / font-medium(500) / -mb-px(下移1px压住容器线)
+     当前项：主题色字 + border-b-2 主题色
+     非当前：灰字(#6B7280) + border-b-2 transparent（保留占位，切换时不抖动）
+   Streamlit 的按钮默认有底色/圆角/边框，这里全部去掉，只保留「文字 + 下边框」。
+   容器自身画底部分隔线，按钮用负下外边距压上去，形成连续的一条线。 */
+[class*="st-key-kb_tabs_"] {
+    border-bottom: 1px solid #E5E7EB;
+    margin-bottom: 14px;
+}
+[class*="st-key-kb_tabs_"] [data-testid="stHorizontalBlock"] { gap: 4px !important; }
+[class*="st-key-kb_tabs_"] button {
+    background: transparent !important; box-shadow: none !important;
+    border: none !important; border-bottom: 2px solid transparent !important;
+    border-radius: 0 !important;
+    padding: 10px 16px !important; min-height: 0 !important;
+    font-size: 14px !important; font-weight: 500 !important; line-height: 1.4;
+    margin-bottom: -1px !important;      /* 压住容器那条线，避免 1px 缝 */
+}
+[class*="st-key-kb_tabs_"] button p {
+    font-size: 14px !important; font-weight: 500 !important;
+    margin: 0 !important; padding: 0 !important; line-height: inherit;
+}
+/* 非当前项：灰字（hover 加深） */
+[class*="st-key-kb_tabs_"] button[kind="secondary"] { color: #6B7280 !important; }
+[class*="st-key-kb_tabs_"] button[kind="secondary"]:hover {
+    color: #374151 !important; background: transparent !important;
+}
+/* 当前项：主题色字 + 底部 2px 主题色横线（不硬编码色值，跟随全局主题） */
+[class*="st-key-kb_tabs_"] button[kind="primary"] {
+    color: var(--primary-color, #409EFF) !important;
+    border-bottom-color: var(--primary-color, #409EFF) !important;
+    font-weight: 600 !important;
+}
+[class*="st-key-kb_tabs_"] button[kind="primary"] p { font-weight: 600 !important; }
+[class*="st-key-kb_tabs_"] button[kind="primary"]:hover {
+    background: transparent !important;
+}
+
+/* 对话头像（st.chat_message）：emoji 头像（🧑‍💻/🤖）在 Windows Segoe UI Emoji 下
+   渲染偏大、会溢出固定尺寸的头像框（用户反馈「框没把图标完整框住」）；且 emoji
+   头像容器在包内没有专属 testid，无法可靠修正。改用 Streamlit 内置 Material 图标
+   头像（avatar="user"/"assistant"）——SVG 尺寸由库保证恰好容纳；默认红/橙底色
+   与系统配色冲突，统一改为主题色（用户=强调蓝，助手=侧边栏深蓝灰）。 */
+[data-testid="stChatMessageAvatarUser"] { background: #409EFF !important; }
+[data-testid="stChatMessageAvatarAssistant"] { background: #1E2A3A !important; }
+
+/* ===== 6) 顶栏（参考客诉系统 AppHeader：白底 + 下边框 + 左右内边距）=====
+   要求：① 滚动时钉在顶部（冻结）；② 文字与页面内容左对齐。
+
+   演进过程（记录在此避免回退）：
+   v1 position:sticky —— 判定在 1.61 滚动结构下不生效。
+   v2 position:fixed + left:240px + 手工补占位 —— 冻结做到了，但左偏移是硬编码的
+      第二份事实（侧边栏宽度一改就错位），且底色必须用内容区灰。
+   v3 position:sticky + align-self:stretch —— 理论上最优（无需偏移），但
+      **实测仍未冻结**（用户浏览器验证），说明 stMain 与顶栏之间存在
+      overflow:hidden/clip 的中间层，sticky 无从生效。
+   v4（当前）position:fixed，但修掉 v2 的两个硬伤：
+      ① 左偏移不再写死像素，改为消费 --kb-sidebar-w 变量（与侧边栏同源）；
+      ② 横向内边距与内容区同源（1rem，等于 stMainBlockContainer 的左右 padding），
+         于是顶栏文字与页面内容左边界由构造保证一致，而不是靠调数值对齐。
+   代价（如实记录）：fixed 脱离文档流，需要手工补位。这里用
+   stMainBlockContainer 的 padding-top 充当占位块——其值取自顶栏实测高度，
+   属于「两处需同步」的耦合，改动顶栏内边距时须一并核对本段的 padding-top。 */
+[class*="st-key-kb_app_header"] {
+    position: fixed; top: 0; right: 0; z-index: 1000;
+    left: var(--kb-sidebar-w);
+    width: auto !important; max-width: none !important;
+    height: var(--kb-header-h); box-sizing: border-box;  /* 高度由变量定死，不再靠内容撑 */
+    background: #FFFFFF;
+    border-bottom: 1px solid #EDEFF2;
+    box-shadow: 0 1px 3px rgba(15,23,42,.04);
+    padding: .625rem 1rem;
+}
+/* 顶栏内分栏的水平间距 + 行高锁定：
+   gap 收窄（Streamlit 各列自带 1rem，比客诉系统散）；
+   height 锁 36px 是占位值能「由构造确定」的前提——行高不锁，
+   最高那件（铃铛按钮默认 ~38px）决定行高，顶栏总高就随组件默认值漂移，
+   下方占位只能靠估。锁死后顶栏总高恒为 10+36+10+1 = 57px。 */
+[class*="st-key-kb_app_header"] [data-testid="stHorizontalBlock"] {
+    gap: .75rem; align-items: center !important; height: 36px;
+}
+/* 铃铛按钮压缩到与搜索框同高（~32px < 行高 36px），不再把行撑高 */
+[class*="st-key-kb_app_header"] button {
+    padding: 6px 10px !important; min-height: 0 !important; font-size: 14px !important;
+}
+[class*="st-key-kb_app_header"] button p { margin: 0 !important; line-height: 1.2; }
+/* ---- 顶栏内所有件锚到同一条垂直中线（用户反馈「铃铛与用户没对齐」）----
+   只靠 st.columns(vertical_alignment="center") 不够：它对齐的是**每一列的列盒**，
+   而列盒高度由各自内容决定；只要某列的 widget 包装层比内容高（例如 markdown
+   包装层继承 line-height 1.6、或按钮自带上下内边距），该列内容就会在列盒里
+   偏上/偏下，于是铃铛与用户文字看起来不在一条线上。
+   改法：列盒拉满高度 → 列内纵向块 flex 居中，于是每个件由浏览器统一算中心，
+   与该件自身盒高无关。
+   ⚠️ 选择器说明：Streamlit 1.61 里列**没有**自己的 testid
+   （[data-testid="stVerticalBlock"] 才是），行容器 testid 是 stHorizontalBlock，
+   列是它的直接子 div——故列用 > div 结构选择器，并整体限定在顶栏作用域内。
+   ⚠️ 这里只居中、**不**拉伸子元素（不用 flex:1）：搜索框要保住自身 ~32px 的矮样式，
+   拉伸会让它变高。 */
+[class*="st-key-kb_app_header"] [data-testid="stHorizontalBlock"] > div { align-self: stretch; }
+[class*="st-key-kb_app_header"] [data-testid="stHorizontalBlock"] > div > [data-testid="stVerticalBlock"] {
+    height: 100%; display: flex; flex-direction: column;
+    align-items: stretch; justify-content: center;
+}
+[class*="st-key-kb_app_header"] [data-testid="stElementContainer"] { width: 100%; }
+/* 注意：不要试图用 [class*="st-key-kb_bell"] 给铃铛挂钩——Streamlit 只为
+   **容器**生成 st-key-* 类，st.button(key=...) 不会生成，那样写是死选择器。
+   铃铛的居中由上面「列内纵向块 flex 居中」统一负责，无需单独规则。 */
+[class*="st-key-kb_app_header"] [data-testid="stMarkdownContainer"] { margin: 0 !important; }
+/* 用户块的行高来源要掐死：正文继承 line-height 1.6，会在 .kb-who 文字上下各留空，
+   而头像（inline-flex，28px）按自身盒高参与居中，两者中心就会差一点。
+   处理：把「包含 .kb-who 的那个 markdown 容器」设为 line-height:1 + 相对定位，
+   内部 div 绝对定位到 50% 再平移——彻底不依赖行盒高度怎么算。
+   用 :has() 精确命中含用户名的容器，而不是 :last-child：
+   铃铛列为空时 Streamlit 可能不渲染该列，位置选择器会失准。 */
+[class*="st-key-kb_app_header"] [data-testid="stMarkdownContainer"]:has(.kb-who) {
+    line-height: 1; position: relative;
+}
+[class*="st-key-kb_app_header"] [data-testid="stMarkdownContainer"]:has(.kb-who) > div {
+    position: absolute; top: 50%; transform: translateY(-50%);
+    left: 0; right: 0;
+}
+/* 搜索框：客诉系统为偏矮的 12.5px 输入框；Streamlit 默认更高更圆，收一下 */
+[class*="st-key-kb_app_header"] input {
+    font-size: 12.5px; min-height: 0; padding: 6px 10px;
+}
+/* 用户胶囊左侧竖分隔线（客诉系统 .header .who 的 border-left） */
+.kb-who { border-left: 1px solid #E5E7EB; padding-left: 14px; }
+/* 顶栏与首个内容块的间距不再单独加 margin：占位块（第 2 节 padding-top: 61px）
+   已含 4px 呼吸空隙，再叠 Streamlit 默认元素间距会重新变松。 */
+[class*="st-key-kb_app_header"] + div { margin-top: 0; }
+/* 顶栏内 markdown 默认 1rem 段落外边距会把白条撑高、并让标题略微偏高 */
+[class*="st-key-kb_app_header"] [data-testid="stMarkdownContainer"] p { margin: 0 !important; }
+[class*="st-key-kb_app_header"] [data-testid="stMarkdownContainer"] > *:first-child { margin-top: 0; }
+[class*="st-key-kb_app_header"] [data-testid="stMarkdownContainer"] > *:last-child { margin-bottom: 0; }
+
+/* ===== 7) help 浮窗（? 图标悬浮提示）完整显示 =====
+   症状①：hover 问号浮窗「显示不全」——浮窗内容盒 stTooltipContent 自带
+   max-height: 18.75rem(300px) + overflow:auto（包内自证 Tooltip.DJg7muty.js），
+   文案超 300px 变「内滚小窗」，下半截看不见。
+   症状②：放开上限后又出现「框没有框住文字」——内容盒 max-width 只有
+   calc(736px - 2*2.3rem)≈662px，而 help 文案里的长英文串
+   （如 mean(closed_at − created_at)）是不可折行 token：原来被 overflow 裁掉，
+   改 visible 后直接戳出框外。
+   处理：max-height 放宽到 min(80vh,48rem)（正常 help 文案远够）；
+   overflow-wrap:anywhere 让长 token 在框内折行——框永远框得住文字；
+   溢出保持 visible（不复活内滚小窗）。
+   安全性：浮窗外壳 position:fixed + z-index 1000060（theme popup 值），
+   远高于本系统 fixed 顶栏的 1000；视口边缘翻转/平移由 floating-ui 的
+   flip/shift 中间件负责（包内 vr() 默认开启）。错误态浮窗同体系一并处理。 */
+[data-testid="stTooltipContent"],
+[data-testid="stTooltipErrorContent"] {
+    max-height: min(80vh, 48rem) !important;
+    overflow: visible !important;
+    overflow-wrap: anywhere !important;
+}

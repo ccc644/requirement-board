@@ -97,10 +97,51 @@
 
 > `.env` 已被 `.gitignore` 忽略，仓库里只提供 `.env.example`。
 
+## 架构分层
+
+原先是单文件应用（`app.py` 7381 行、146 个函数、42 个模块级变量）。现按职责拆分，**函数体逐字保留**，只重新组织模块边界：
+
+```
+app.py          入口：登录页 + 主流程编排（324 行）
+config.py       常量与业务枚举（状态 / 来源 / 优先级 / 问卷 / 导航）
+state.py        登录态与用户查找表（跨模块共享的可变容器）
+bootstrap.py    启动初始化、跨会话数据同步
+services/       业务逻辑，不含 UI
+  requirements    需求 CRUD、过滤、子需求联动、状态流转
+  projects        项目分组与展示
+  people          人员负载聚合
+  evaluation      评价、问卷、改进闭环
+  excel           导入导出与行列映射
+  notices         待办提醒聚合
+  notify          钉钉 / 邮件双通道提醒
+  cache           st.cache_data 包装与失效
+  stats           侧边栏统计
+ui/             可复用渲染层
+  styles          CSS 注入（样式表在 assets/）
+  components      徽章、卡片、图表、日期选择
+  layout          侧边栏、页头、导航
+  dialogs         评分、问卷、改进公示等弹窗
+pages/          11 个页面，一页一模块
+assets/         app.css、login.css（原内嵌 556 行 CSS）
+```
+
+三条硬约束（拆分时踩实过）：
+
+1. **无循环导入**：`services/cache.py` 需要清掉其它模块的缓存，改用函数内延迟导入，避免 cache 层反向依赖业务层
+2. **可变容器原地更新**：`state.py` 的 `USERS` / 查找表被多个模块 `from state import`，初始化时必须 `clear()+update()` 而不是重新绑定，否则各模块拿到的是旧对象
+3. **缓存失效集中**：所有 `st.cache_data` 的清理由 `services/cache.py` 统一收口，业务代码不直接 `.clear()`
+
 ## 目录结构
 
 ```
-app.py                  主应用（Streamlit 入口，含 A1~A6 各 AI 能力与对话智能体）
+app.py                  应用入口（登录页 + 主流程编排）
+config.py               常量与业务枚举
+state.py                登录态、用户查找表
+bootstrap.py            启动初始化与跨会话同步
+services/               业务逻辑与数据聚合（不含 UI）
+ui/                     可复用组件、布局、弹窗、样式
+pages/                  11 个页面模块
+assets/                 app.css / login.css
 ai_helper.py            AI 辅助逻辑（抽取、相似检测、清晰度检查、检索规划、周报）
 llm_gateway.py          多提供商 LLM 网关
 db.py                   数据访问层与建库逻辑
@@ -119,6 +160,7 @@ tools/                  自检与 UI 探测脚本
 - **主库是 PostgreSQL**，`data/kanban.db` 仅作本地示例与离线查看
 - **问卷题干冻结**：改题干等于换指标，必须递增 `SURVEY_QUESTION_SET` 版本号并按版本分组统计，禁止跨版本混算均分
 - **工作日 / 统计口径统一**：所有聚合走同一套函数，不在视图层另算
+- **样式只走 `assets/`**：新增样式改 CSS 文件，不要再往 Python 字符串里塞
 
 ## License
 

@@ -1,0 +1,85 @@
+/* ===== 登录页居中（三件套，缺一不可）=====
+   ① 主区铺满视口并成为 flex 容器 → 让 block 容器有确定的可用高度可撑；
+   ② block 容器撑满该高度 + 纵向 flex 居中 → 卡片垂直居中；
+   ③ 卡片自身 max-width + margin:0 auto → 卡片水平居中。
+   为什么必须三件套：block 容器是 align-items:center 的纵向 flex，它按内容宽度
+   收缩；只给它 justify-content:center 时，一旦上级没有确定高度，它会退化成
+   内容高度，纵向居中就失效（卡片贴在顶部）。
+   ② 的 align-items 用 stretch 而非 center：center 会让卡片按内容宽度收缩，
+   而卡片内首个块（品牌区）也是收缩块，结果整块左偏——这是「没居中」的根因之一。
+   视觉位置：用户要求「往下一点」，已按反馈连续下调三次（当前约低于几何正中 76px）。
+   ⚠️ 方向容易搞反：justify-content:center 是在**扣掉内边距之后的内容盒**里居中，
+   所以「上内边距更大 → 内容更靠下」，「下内边距更大 → 内容反而更靠上」。
+   偏移量 = (上内边距 − 下内边距) / 2。当前 10.5rem vs 1rem → 下移 76px
+   （1rem = 16px，故每加 2rem 上边距 = 下移 16px；需要精确微调时按此换算）。
+   想再微调：只改这两个 padding 值（调大上边距更靠下）。 */
+[data-testid="stMain"] { background: #1E2A3A; }
+[data-testid="stMainBlockContainer"], [data-testid="stMain"] > div {
+    min-height: 100dvh !important;
+    display: flex !important; flex-direction: column !important;
+    justify-content: center !important; align-items: stretch !important;
+    max-width: none !important;
+    padding: 10.5rem 1rem 1rem !important;
+}
+/* 登录态不显示侧边栏（用 :has 精确限定：仅在登录卡片存在时渲染才隐藏，
+   避免影响登录后页面的侧边栏宽度/贴底规则）。
+   两条都写：一条挡 <section> 自身，一条挡它的包裹层，DOM 结构微调也不会漏。 */
+[data-testid="stAppViewContainer"]:has([class*="st-key-kb_login_card"]) [data-testid="stSidebar"],
+[data-testid="stAppViewContainer"]:has([class*="st-key-kb_login_card"]) [data-testid="stSidebar"] > div {
+    display: none !important;
+}
+/* 登录卡片：水平居中的落点就在这两行（max-width + margin auto） */
+[class*="st-key-kb_login_card"] {
+    width: 100% !important; max-width: 400px !important;
+    margin: 0 auto !important;
+    box-sizing: border-box;
+    background: #FFFFFF; border-radius: 14px;
+    box-shadow: 0 12px 36px rgba(0,0,0,.30);
+    padding: 30px 30px 26px !important;
+}
+/* 品牌区：站点徽标 + 主标题 + 副标题。
+   必须显式给宽度：它是 flex 容器（block 容器）的子项，若不给宽度会按内容收缩，
+   导致 margin:auto 失效、徽标/标题整体左偏。 */
+.kb-login-brand { width: 100%; text-align: center; margin-bottom: 22px; }
+.kb-login-logo {
+    width: 46px; height: 46px; margin: 0 auto 12px;
+    border-radius: 12px; background: #409EFF; color: #FFF;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 23px; box-shadow: 0 4px 12px rgba(64,158,255,.35);
+}
+.kb-login-title {
+    font-size: 20px; font-weight: 700; color: #1F2329;
+    line-height: 1.3; letter-spacing: .2px;
+}
+.kb-login-sub {
+    font-size: 12px; color: #8A94A6; margin-top: 6px; line-height: 1.4;
+}
+/* 表单控件：与 APP 内一致的圆角与聚焦色 */
+[class*="st-key-kb_login_card"] label p {
+    font-size: 12.5px; color: #4E5969; font-weight: 500; margin: 0 0 4px !important;
+}
+[class*="st-key-kb_login_card"] input {
+    font-size: 13.5px; border-radius: 8px; padding: 9px 12px;
+}
+/* 主按钮用系统主题色（不做硬编码覆盖，避免与全局主题冲突） */
+[class*="st-key-kb_login_card"] button {
+    border-radius: 8px; font-size: 14px; font-weight: 600;
+    padding: 9px 12px; margin-top: 4px;
+}
+[class*="st-key-kb_login_card"] button p { font-size: 14px; margin: 0 !important; }
+/* 卡片内折叠区（使用说明）：默认收起，文字调小调淡，保持卡片干净 */
+[class*="st-key-kb_login_card"] [data-testid="stExpander"] { margin-top: 14px; }
+[class*="st-key-kb_login_card"] [data-testid="stExpander"] summary {
+    font-size: 11.5px !important; color: #8A94A6 !important;
+    padding: 6px 0 !important; min-height: 0 !important;
+}
+[class*="st-key-kb_login_card"] [data-testid="stExpander"] summary p {
+    font-size: 11.5px !important; margin: 0 !important;
+}
+[class*="st-key-kb_login_card"] [data-testid="stExpander"] [data-testid="stMarkdownContainer"] p {
+    font-size: 11.5px; color: #8A94A6; line-height: 1.6; margin: 0;
+}
+/* 登录页不显示顶部工具栏残留 */
+[data-testid="stAppViewContainer"]:has([class*="st-key-kb_login_card"]) header[data-testid="stHeader"] {
+    display: none !important;
+}
